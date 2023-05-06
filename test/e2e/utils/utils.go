@@ -792,3 +792,32 @@ func installDrbd() {
 	_ = RunInLinux("sh install_drbd.sh")
 
 }
+
+func InstallHwameistorOperator(ctx context.Context) error {
+	logrus.Infof("helm install hwameistor-operator")
+	_ = RunInLinux("helm install hwameistor-operator -n hwameistor-operator ../../helm/operator --create-namespace --set global.k8sImageRegistry=m.daocloud.io/registry.k8s.io   --set global.hwameistorImageRegistry=ghcr.m.daocloud.io")
+	f := framework.NewDefaultFramework(clientset.AddToScheme)
+	client := f.GetClient()
+	Operator := &appsv1.Deployment{}
+	OperatorKey := k8sclient.ObjectKey{
+		Name:      "hwameistor-operator",
+		Namespace: "hwameistor-operator",
+	}
+	err := wait.PollImmediate(3*time.Second, 20*time.Minute, func() (done bool, err error) {
+		err = client.Get(ctx, OperatorKey, Operator)
+		if err != nil {
+			logrus.Error(err)
+		}
+		if Operator.Status.AvailableReplicas == int32(1) {
+			logrus.Infof("hwameistor-operator ready")
+			return true, nil
+
+		}
+		return false, nil
+	})
+	if err != nil {
+		logrus.Error(err)
+		return err
+	}
+	return nil
+}
